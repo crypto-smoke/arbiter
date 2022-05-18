@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/crypto-smoke/arbiter/arb"
-	"github.com/crypto-smoke/arbiter/erc20"
+	"github.com/crypto-smoke/arbiter/uniswapv2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
@@ -12,9 +12,11 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
+var tokens = map[string]Token{}
 var coins = map[string]common.Address{
 	"wcro": common.HexToAddress("0x5C7F8A570d578ED84E63fdFA7b1eE72dEae1AE23"), // wCRO
 	"mmf":  common.HexToAddress("0x97749c9B61F878a880DfE312d2594AE07AEd7656"), // MMF
@@ -26,7 +28,7 @@ var coins = map[string]common.Address{
 }
 
 var (
-	tokens = []string{
+	tokensList = []string{
 		"0x5C7F8A570d578ED84E63fdFA7b1eE72dEae1AE23", // wCRO
 		"0x97749c9B61F878a880DfE312d2594AE07AEd7656", // MMF
 		"0xc21223249CA28397B4B6541dfFaEcC539BfF0c59", // USDC
@@ -35,19 +37,16 @@ var (
 		"0xf2001b145b43032aaf5ee2884e456ccd805f677d", // DAI
 
 	}
+	/*
+		pools = []string{
+			"0xbA452A1c0875D33a440259B1ea4DcA8f5d86D9Ae", // MMF wCRO
+			"0x722f19bd9A1E5bA97b3020c6028c279d27E4293C", // MMF USDC
+			"0x5801d37e04ab1f266c35a277e06c9d3afa1c9ca2", // MMF USDT
+			"0xeF2dC4849bDCC120acB7274cd5A557B5145DA149", // MMF MUSD
+		}
 
-	pools = []string{
-		"0xbA452A1c0875D33a440259B1ea4DcA8f5d86D9Ae", // MMF wCRO
-		"0x722f19bd9A1E5bA97b3020c6028c279d27E4293C", // MMF USDC
-		"0x5801d37e04ab1f266c35a277e06c9d3afa1c9ca2", // MMF USDT
-		"0xeF2dC4849bDCC120acB7274cd5A557B5145DA149", // MMF MUSD
-	}
+	*/
 )
-
-type Coin struct {
-	Address  common.Address
-	Decimals int
-}
 
 type arbs struct {
 	Start   []string
@@ -59,6 +58,7 @@ type arbs struct {
 var routes [][]string
 
 func init() {
+
 	/* 	paths := arbs{
 	   		Start: []string{"usdc", "usdt", "musd", "dai"},
 	   		Mid:   []string{"wcro", "mmf"}, // "crow"},
@@ -66,7 +66,7 @@ func init() {
 	   	}
 
 	*/
-
+	return
 	paths := arbs{
 		Start: []string{"usdc", "usdt", "musd", "wcro", "mmf"},
 		//Mid:   []string{"wcro", "mmf"}, // "crow"},
@@ -108,14 +108,14 @@ func init() {
 		}
 
 	*/
-	fmt.Println(routes)
+	//fmt.Println(routes)
 }
 func main() { // appease the heroku gods
 	go func() { _ = http.ListenAndServe(":"+os.Getenv("PORT"), nil) }()
 
 	log.Logger = log.Output(zerolog.ConsoleWriter{
 		Out:     os.Stdout,
-		NoColor: true,
+		NoColor: false,
 	})
 
 	client, err := ethclient.Dial("https://cronosrpc-2.xstaking.sg") //"https://rpc.nebkas.ro/")
@@ -123,19 +123,65 @@ func main() { // appease the heroku gods
 		log.Err(err).Msg("failed dialing rpc")
 		return
 	}
+
+	for _, t := range tokensList {
+		tok, err := NewToken(client, common.HexToAddress(t))
+		if err != nil {
+			log.Err(err).Msg("failed creating token")
+			return
+		}
+		err = tok.populate()
+		if err != nil {
+			log.Err(err).Msg("failed populating token")
+			return
+		}
+		tokens[strings.ToLower(tok.Symbol)] = *tok
+	}
+	fmt.Println(tokensList)
+	router, err := uniswapv2.NewRouter(common.HexToAddress("0x145677FC4d9b8F19B5D56d1820c48e0443049a30"), client)
+	if err != nil {
+		log.Err(err).Msg("failed to create router client")
+		return
+	}
+	f, err := router.Factory(nil)
+	if err != nil {
+		log.Err(err).Msg("failed to get factory address")
+		return
+	}
+	factory, err := uniswapv2.NewFactory(f, client)
+	if err != nil {
+		log.Err(err).Msg("failed to create router client")
+		return
+	}
+
+	//	type Pair [2]*Token
+	//var pairs []Pair
+	for _, t1 := range tokens {
+		for _, t2 := range tokens {
+			if t1 == t2 {
+				continue
+			}
+			pair, err := factory.GetPair(nil, t1.Address, t2.Address)
+			if err != nil {
+				log.Err(err).Msg("failed to get pair from factory")
+				return
+			}
+			if isZeroAddress(pair) {
+				continue
+			}
+			fmt.Printf("%v - %v: %v\n", t1.Symbol, t2.Symbol, pair.String())
+		}
+	}
+	return
 	a, err := arb.NewArb(common.HexToAddress("0xc98B790B00Bf8b4b3818a1432d7fAe64Fdee0aaB"), client)
 	if err != nil {
 		log.Err(err).Msg("failed to create arb client")
 		return
 	}
 	/*
-		router, err := uniswapv2.NewRouter(common.HexToAddress("0x145677FC4d9b8F19B5D56d1820c48e0443049a30"), client)
-		if err != nil {
-			log.Err(err).Msg("failed to create router client")
-			return
-		}
 
-	*/
+
+	 */
 
 	ticker := time.NewTicker(6 * time.Second)
 	for ; true; <-ticker.C {
@@ -145,7 +191,9 @@ func main() { // appease the heroku gods
 		}
 	}
 }
-
+func isZeroAddress(a common.Address) bool {
+	return a == common.Address{0}
+}
 func checkTri(a *arb.Arb, r []string) {
 	var inputDecimals int64 = 6
 	if r[0] == "musd" || r[0] == "dai" {

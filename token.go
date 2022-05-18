@@ -10,13 +10,16 @@ import (
 
 type Token struct {
 	Address   common.Address
-	Decimals  big.Int
 	Name      string
 	Symbol    string
+	Decimals  int
 	Token     *erc20.Token
 	populated bool
 }
 
+func (t *Token) ToFloat64(balance *big.Int) float64 {
+	return balToFloat(balance, t.Decimals)
+}
 func (t *Token) populate() error {
 	decimals, err := t.Token.Decimals(nil)
 	if err != nil {
@@ -32,12 +35,12 @@ func (t *Token) populate() error {
 		return err
 	}
 
-	dec := new(big.Int).SetUint64(uint64(decimals))
-	t.Decimals = *dec
+	t.Decimals = int(decimals)
 
 	t.Name = name
 
 	t.Symbol = symbol
+	t.populated = true
 	return nil
 }
 
