@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/crypto-smoke/arbiter/arb"
-	"github.com/crypto-smoke/arbiter/uniswapv2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -110,6 +111,40 @@ func init() {
 	*/
 	//fmt.Println(routes)
 }
+
+type PoolList struct {
+	sync.RWMutex
+	p map[common.Address]map[common.Address]common.Address
+}
+
+func NewPoolList() *PoolList {
+	return &PoolList{p: map[common.Address]map[common.Address]common.Address{}}
+}
+func (p *PoolList) sortAddresses(addressA, addressB common.Address) (common.Address, common.Address) {
+	res := bytes.Compare(addressA.Bytes(), addressB.Bytes())
+	if res > 0 {
+		return addressB, addressA
+	}
+	return addressA, addressB
+}
+func (p *PoolList) SavePair(addressA, addressB, poolAddress common.Address) {
+	p.Lock()
+	defer p.Unlock()
+	addressA, addressB = p.sortAddresses(addressA, addressB)
+	//fmt.Println("SAVING:", addressA, addressB)
+
+	if p.p[addressA] == nil {
+		p.p[addressA] = make(map[common.Address]common.Address)
+	}
+	p.p[addressA][addressB] = poolAddress
+
+}
+func (p *PoolList) GetPair(addressA, addressB common.Address) common.Address {
+	p.RLock()
+	defer p.RUnlock()
+	addressA, addressB = p.sortAddresses(addressA, addressB)
+	return p.p[addressA][addressB]
+}
 func main() { // appease the heroku gods
 	go func() { _ = http.ListenAndServe(":"+os.Getenv("PORT"), nil) }()
 
@@ -135,41 +170,39 @@ func main() { // appease the heroku gods
 			log.Err(err).Msg("failed populating token")
 			return
 		}
-		tokens[strings.ToLower(tok.Symbol)] = *tok
+		tokens[strings.ToLower(tok.symbol)] = *tok
 	}
-	fmt.Println(tokensList)
-	router, err := uniswapv2.NewRouter(common.HexToAddress("0x145677FC4d9b8F19B5D56d1820c48e0443049a30"), client)
-	if err != nil {
-		log.Err(err).Msg("failed to create router client")
-		return
-	}
-	f, err := router.Factory(nil)
-	if err != nil {
-		log.Err(err).Msg("failed to get factory address")
-		return
-	}
-	factory, err := uniswapv2.NewFactory(f, client)
+	//fmt.Println(tokensList)
+
+	swap, err := NewSwap(common.HexToAddress("0x145677FC4d9b8F19B5D56d1820c48e0443049a30"), client)
 	if err != nil {
 		log.Err(err).Msg("failed to create router client")
 		return
 	}
 
-	//	type Pair [2]*Token
-	//var pairs []Pair
+	poolList := NewPoolList()
 	for _, t1 := range tokens {
 		for _, t2 := range tokens {
 			if t1 == t2 {
 				continue
 			}
-			pair, err := factory.GetPair(nil, t1.Address, t2.Address)
+			pair, err := swap.GetPair(nil, t1.address, t2.address)
 			if err != nil {
 				log.Err(err).Msg("failed to get pair from factory")
 				return
 			}
 			if isZeroAddress(pair) {
+				fmt.Printf("%s - %s: %s\n", t1.Symbol(), t2.Symbol(), "NO POOL")
+
 				continue
 			}
-			fmt.Printf("%v - %v: %v\n", t1.Symbol, t2.Symbol, pair.String())
+			existing := poolList.GetPair(t1.address, t2.address)
+			if !isZeroAddress(existing) {
+				//fmt.Println("EXISTS:", existing)
+				continue
+			}
+			poolList.SavePair(t1.address, t2.address, pair)
+			fmt.Printf("%v - %v: %v\n", t1.Symbol(), t2.Symbol(), pair.String())
 		}
 	}
 	return

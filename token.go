@@ -9,16 +9,28 @@ import (
 )
 
 type Token struct {
-	Address   common.Address
-	Name      string
-	Symbol    string
-	Decimals  int
-	Token     *erc20.Token
+	address  common.Address
+	name     string
+	symbol   string
+	decimals int
+	*erc20.Token
 	populated bool
 }
 
+func (t *Token) Address() common.Address {
+	return t.address
+}
+func (t *Token) Name() string {
+	return t.name
+}
+func (t *Token) Symbol() string {
+	return t.symbol
+}
+func (t *Token) Decimals() int {
+	return t.decimals
+}
 func (t *Token) ToFloat64(balance *big.Int) float64 {
-	return balToFloat(balance, t.Decimals)
+	return balToFloat(balance, t.decimals)
 }
 func (t *Token) populate() error {
 	decimals, err := t.Token.Decimals(nil)
@@ -35,11 +47,11 @@ func (t *Token) populate() error {
 		return err
 	}
 
-	t.Decimals = int(decimals)
+	t.decimals = int(decimals)
 
-	t.Name = name
+	t.name = name
 
-	t.Symbol = symbol
+	t.symbol = symbol
 	t.populated = true
 	return nil
 }
@@ -53,7 +65,7 @@ func NewToken(backend bind.ContractBackend, a common.Address) (*Token, error) {
 		return nil, err
 	}
 	return &Token{
-		Address: a,
+		address: a,
 		Token:   t,
 	}, nil
 }
