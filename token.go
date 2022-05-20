@@ -32,6 +32,33 @@ func (t *Token) Decimals() int {
 func (t *Token) ToFloat64(balance *big.Int) float64 {
 	return balToFloat(balance, t.decimals)
 }
+
+func (t *Token) FromFloat64(amount float64) *big.Int {
+	f := big.NewFloat(amount)
+	exp := Pow(big.NewFloat(10), uint64(t.decimals))
+	f = f.Mul(f, exp)
+	i, _ := f.Int(nil)
+	return i
+}
+
+func Pow(a *big.Float, e uint64) *big.Float {
+	result := Zero().Copy(a)
+	for i := uint64(0); i < e-1; i++ {
+		result = Mul(result, a)
+	}
+	return result
+}
+
+func Zero() *big.Float {
+	r := big.NewFloat(0.0)
+	r.SetPrec(256)
+	return r
+}
+
+func Mul(a, b *big.Float) *big.Float {
+	return Zero().Mul(a, b)
+}
+
 func (t *Token) populate() error {
 	decimals, err := t.Token.Decimals(nil)
 	if err != nil {

@@ -7,6 +7,25 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type LiquidityPool struct {
+	address        common.Address
+	token0, token1 common.Address
+	*uniswapv2.LP
+}
+
+func (lp *LiquidityPool) Address() common.Address {
+	return lp.address
+}
+func (lp *LiquidityPool) Token0() common.Address {
+	return lp.token0
+}
+func (lp *LiquidityPool) Token1() common.Address {
+	return lp.token1
+}
+func NewLP(address common.Address, backend bind.ContractBackend) (*LiquidityPool, error) {
+	return &LiquidityPool{}, nil
+}
+
 type Swap struct {
 	routerAddress  common.Address
 	factoryAddress common.Address
@@ -14,6 +33,10 @@ type Swap struct {
 	*uniswapv2.Factory
 }
 
+func (s *Swap) shitfuck() {
+	//	fee := 0.03
+	//	tokensOut := (1/fee) * ( )
+}
 func (s *Swap) RouterAddress() common.Address {
 	return s.routerAddress
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/crypto-smoke/arbiter/arb"
+	"github.com/crypto-smoke/arbiter/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
@@ -67,7 +68,7 @@ func init() {
 	   	}
 
 	*/
-	return
+
 	paths := arbs{
 		Start: []string{"usdc", "usdt", "musd", "wcro", "mmf"},
 		//Mid:   []string{"wcro", "mmf"}, // "crow"},
@@ -145,6 +146,70 @@ func (p *PoolList) GetPair(addressA, addressB common.Address) common.Address {
 	addressA, addressB = p.sortAddresses(addressA, addressB)
 	return p.p[addressA][addressB]
 }
+func doThing(client *ethclient.Client) {
+	util, err := utils.NewThing(common.HexToAddress("0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"), client)
+	if err != nil {
+		log.Err(err).Msg("failed dialing rpc")
+		return
+	}
+
+	// returns false 894308421969433
+	res, err := util.ComputeProfitMaximizingTrade(nil, big.NewInt(1000000000000000), big.NewInt(2000000000000000), big.NewInt(3000000000000000), big.NewInt(4000000000000000))
+	if err != nil {
+		log.Err(err).Msg("failed dialing rpc")
+		return
+	}
+	fmt.Println(res)
+	atob, amt := computeProfitMaximizingTrade(big.NewInt(1000000000000000), big.NewInt(2000000000000000), big.NewInt(3000000000000000), big.NewInt(4000000000000000))
+	fmt.Println(atob, amt)
+}
+func aOrB(aToB bool, token1, token2 *big.Int) *big.Int {
+	if aToB {
+		return token1
+	}
+	return token2
+}
+
+//var fee int64 = 9970 // 9970 == 3% == uniswap default
+var fee int64 = 9983 // 1.7% == meerkat default
+
+func computeProfitMaximizingTrade(truePriceTokenA, truePriceTokenB, reserveA, reserveB *big.Int) (aToB bool, amountIn *big.Int) {
+	//	aToB = FullMath.mulDiv(reserveA, truePriceTokenB, reserveB) < truePriceTokenA;
+	mul := new(big.Int).Mul(reserveA, truePriceTokenB)
+	div := new(big.Int).Div(mul, reserveB)
+	//fmt.Println("atob math", div.String())
+	aToB = div.Cmp(truePriceTokenA) == -1
+
+	// uint256 invariant = reserveA.mul(reserveB);
+	invariant := new(big.Int).Mul(reserveA, reserveB)
+	//fmt.Println("invariant", invariant.String())
+	/*uint256 leftSide = Babylonian.sqrt(
+			FullMath.mulDiv(
+				invariant.mul(1000),
+				aToB ? truePriceTokenA : truePriceTokenB,
+		(aToB ? truePriceTokenB : truePriceTokenA).mul(997)
+		)
+	);		*/
+	invariant1000 := new(big.Int).Mul(invariant, big.NewInt(10000))
+	mulDiv := new(big.Int).Mul(invariant1000, aOrB(aToB, truePriceTokenA, truePriceTokenB))
+	mulDiv = new(big.Int).Div(mulDiv, new(big.Int).Mul(aOrB(aToB, truePriceTokenB, truePriceTokenA), big.NewInt(fee)))
+	//fmt.Println("mdiv", mulDiv.String())
+	leftSide := new(big.Int).Sqrt(mulDiv)
+
+	//uint256 rightSide = (aToB ? reserveA.mul(1000) : reserveB.mul(1000)) / 997;
+	rightSide := aOrB(aToB, new(big.Int).Mul(reserveA, big.NewInt(10000)), new(big.Int).Mul(reserveB, big.NewInt(10000)))
+	rightSide = rightSide.Div(rightSide, big.NewInt(fee))
+	//fmt.Println(leftSide.String(), rightSide.String())
+	// if (leftSide < rightSide) return (false, 0);
+	if leftSide.Cmp(rightSide) == -1 {
+		return false, new(big.Int)
+	}
+
+	// compute the amount that must be sent to move the price to the profit-maximizing price
+	//amountIn = leftSide.sub(rightSide);
+	amountIn = leftSide.Sub(leftSide, rightSide)
+	return
+}
 func main() { // appease the heroku gods
 	go func() { _ = http.ListenAndServe(":"+os.Getenv("PORT"), nil) }()
 
@@ -154,11 +219,13 @@ func main() { // appease the heroku gods
 	})
 
 	client, err := ethclient.Dial("https://cronosrpc-2.xstaking.sg") //"https://rpc.nebkas.ro/")
+	//client, err := ethclient.Dial("http://127.0.0.1:8545/") //"https://rpc.nebkas.ro/")
 	if err != nil {
 		log.Err(err).Msg("failed dialing rpc")
 		return
 	}
-
+	//doThing(client)
+	//return
 	for _, t := range tokensList {
 		tok, err := NewToken(client, common.HexToAddress(t))
 		if err != nil {
@@ -173,7 +240,7 @@ func main() { // appease the heroku gods
 		tokens[strings.ToLower(tok.symbol)] = *tok
 	}
 	//fmt.Println(tokensList)
-
+	// meerkat finance 0x145677FC4d9b8F19B5D56d1820c48e0443049a30
 	swap, err := NewSwap(common.HexToAddress("0x145677FC4d9b8F19B5D56d1820c48e0443049a30"), client)
 	if err != nil {
 		log.Err(err).Msg("failed to create router client")
@@ -192,8 +259,7 @@ func main() { // appease the heroku gods
 				return
 			}
 			if isZeroAddress(pair) {
-				fmt.Printf("%s - %s: %s\n", t1.Symbol(), t2.Symbol(), "NO POOL")
-
+				//fmt.Printf("%s - %s: %s\n", t1.Symbol(), t2.Symbol(), "NO POOL")
 				continue
 			}
 			existing := poolList.GetPair(t1.address, t2.address)
@@ -205,7 +271,9 @@ func main() { // appease the heroku gods
 			fmt.Printf("%v - %v: %v\n", t1.Symbol(), t2.Symbol(), pair.String())
 		}
 	}
-	return
+	//return
+	// 0x5FbDB2315678afecb367f032d93F642f64180aa3 // localhost laptop
+	// cronos mainnet 0xc98B790B00Bf8b4b3818a1432d7fAe64Fdee0aaB
 	a, err := arb.NewArb(common.HexToAddress("0xc98B790B00Bf8b4b3818a1432d7fAe64Fdee0aaB"), client)
 	if err != nil {
 		log.Err(err).Msg("failed to create arb client")
@@ -216,6 +284,7 @@ func main() { // appease the heroku gods
 
 	 */
 
+	fmt.Println(routes)
 	ticker := time.NewTicker(6 * time.Second)
 	for ; true; <-ticker.C {
 		for _, r := range routes {
@@ -227,21 +296,23 @@ func main() { // appease the heroku gods
 func isZeroAddress(a common.Address) bool {
 	return a == common.Address{0}
 }
-func checkTri(a *arb.Arb, r []string) {
-	var inputDecimals int64 = 6
-	if r[0] == "musd" || r[0] == "dai" {
-		inputDecimals = 18
+func checkTri(a *arb.Arb, path []string) {
+	var r []Token
+	for _, t := range path {
+		r = append(r, tokens[t])
 	}
-	amount := new(big.Int).Mul(big.NewInt(1000), new(big.Int).Exp(big.NewInt(10), big.NewInt(inputDecimals), nil))
-	//
+	//fmt.Println(r)
+
+	//amount := new(big.Int).Mul(big.NewInt(100), new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(r[0].Decimals())), nil))
+	amount := r[0].FromFloat64(100)
 	output, err := a.EstimateTriDexTrade(nil,
 		common.HexToAddress("0x145677FC4d9b8F19B5D56d1820c48e0443049a30"),
 		common.HexToAddress("0x145677FC4d9b8F19B5D56d1820c48e0443049a30"),
 		common.HexToAddress("0x145677FC4d9b8F19B5D56d1820c48e0443049a30"),
 
-		coins[r[0]],
-		coins[r[1]],
-		coins[r[2]],
+		r[0].Address(),
+		r[1].Address(),
+		r[2].Address(),
 		amount,
 	)
 
@@ -250,14 +321,13 @@ func checkTri(a *arb.Arb, r []string) {
 		return
 	}
 
-	outputDecimals := inputDecimals
 	//fmt.Println("checking tri", r[0], r[1], r[2], r[0], balToFloat(amount, int(inputDecimals)), balToFloat(output, int(outputDecimals)))
-	if balToFloat(output, int(outputDecimals))-balToFloat(amount, int(inputDecimals)) > 0.5 {
+	if balToFloat(output, r[0].Decimals())-balToFloat(amount, r[0].Decimals()) > 0 {
 		//if balToFloat(new(big.Int).Sub(output, amount), 6) >= 1 {
 		log.Info().
-			Float64("input", balToFloat(amount, int(inputDecimals))).
-			Float64("output", balToFloat(output, int(outputDecimals))).
-			Msgf("%v -> %v -> %v -> %v", r[0], r[1], r[2], r[0])
+			Float64("input", balToFloat(amount, r[0].Decimals())).
+			Float64("output", balToFloat(output, r[0].Decimals())).
+			Msgf("%v -> %v -> %v -> %v", r[0].Symbol(), r[1].Symbol(), r[2].Symbol(), r[0].Symbol())
 		/*
 			txn, err := a.DualDexTrade(&bind.TransactOpts{
 				From:      common.Address{},
