@@ -279,16 +279,37 @@ func main() { // appease the heroku gods
 		log.Err(err).Msg("failed to create arb client")
 		return
 	}
-	/*
-
-
-	 */
 
 	fmt.Println(routes)
 	ticker := time.NewTicker(6 * time.Second)
 	for ; true; <-ticker.C {
-		for _, r := range routes {
-			go checkTri(a, r)
+		for _, path := range routes {
+			//go func(path []string) {
+			canArb := checkTri(a, path)
+			if !canArb {
+				continue
+			}
+			var r []Token
+			for _, t := range path {
+				r = append(r, tokens[t])
+			}
+			reserves0, reserves1, err := swap.GetReserves(r[0].Address(), r[1].Address())
+			if err != nil {
+				log.Err(err).Msg("failed getting reserves 1")
+			}
+			reserves2, reserves3, err := swap.GetReserves(r[1].Address(), r[2].Address())
+			if err != nil {
+				log.Err(err).Msg("failed getting reserves 2")
+			}
+
+			atob, amountIn := computeProfitMaximizingTrade(reserves0, reserves1, reserves2, reserves3)
+			fmt.Println(atob, amountIn, reserves0.String(), reserves1.String(), reserves2.String(), reserves3.String())
+			inputToken := r[0]
+			if atob {
+				inputToken = r[2]
+			}
+			fmt.Printf("input %0.2f %s\n", inputToken.ToFloat64(amountIn), inputToken.Symbol())
+			//}(path)
 			//	go checkDual(a, r)
 		}
 	}
@@ -296,7 +317,7 @@ func main() { // appease the heroku gods
 func isZeroAddress(a common.Address) bool {
 	return a == common.Address{0}
 }
-func checkTri(a *arb.Arb, path []string) {
+func checkTri(a *arb.Arb, path []string) bool {
 	var r []Token
 	for _, t := range path {
 		r = append(r, tokens[t])
@@ -318,7 +339,7 @@ func checkTri(a *arb.Arb, path []string) {
 
 	if err != nil {
 		log.Err(err).Msg("failed to create arb client")
-		return
+		return false
 	}
 
 	//fmt.Println("checking tri", r[0], r[1], r[2], r[0], balToFloat(amount, int(inputDecimals)), balToFloat(output, int(outputDecimals)))
@@ -328,6 +349,8 @@ func checkTri(a *arb.Arb, path []string) {
 			Float64("input", balToFloat(amount, r[0].Decimals())).
 			Float64("output", balToFloat(output, r[0].Decimals())).
 			Msgf("%v -> %v -> %v -> %v", r[0].Symbol(), r[1].Symbol(), r[2].Symbol(), r[0].Symbol())
+
+		return true
 		/*
 			txn, err := a.DualDexTrade(&bind.TransactOpts{
 				From:      common.Address{},
@@ -347,6 +370,7 @@ func checkTri(a *arb.Arb, path []string) {
 
 		*/
 	}
+	return false
 }
 
 func checkDual(a *arb.Arb, r []string) {
