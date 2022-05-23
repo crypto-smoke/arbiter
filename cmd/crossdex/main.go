@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/crypto-smoke/arbiter"
 	"github.com/crypto-smoke/arbiter/arb"
+	"github.com/crypto-smoke/arbiter/recon"
 	"github.com/crypto-smoke/arbiter/utils"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
@@ -18,7 +21,7 @@ import (
 	"time"
 )
 
-var tokens = map[string]Token{}
+var tokens = map[string]arbiter.Token{}
 var coins = map[string]common.Address{
 	"wcro": common.HexToAddress("0x5C7F8A570d578ED84E63fdFA7b1eE72dEae1AE23"), // wCRO
 	"mmf":  common.HexToAddress("0x97749c9B61F878a880DfE312d2594AE07AEd7656"), // MMF
@@ -70,16 +73,16 @@ func init() {
 	*/
 
 	paths := arbs{
-		Start: []string{"usdc", "usdt", "musd", "wcro", "mmf"},
-		//Mid:   []string{"wcro", "mmf"}, // "crow"},
+		Start: []string{"usdc", "usdt", "musd"},
+		Mid:   []string{"wcro", "mmf", "usdc", "usdt", "musd"}, // "crow"},
 		//End:   []string{"usdc", "usdt", "musd","dai"},
 	}
 	for _, start := range paths.Start {
-		for _, mid := range paths.Start {
+		for _, mid := range paths.Mid {
 			if mid == start {
 				continue
 			}
-			for _, mmid := range paths.Start {
+			for _, mmid := range paths.Mid {
 				if mmid == start {
 					continue
 				}
@@ -210,7 +213,8 @@ func computeProfitMaximizingTrade(truePriceTokenA, truePriceTokenB, reserveA, re
 	amountIn = leftSide.Sub(leftSide, rightSide)
 	return
 }
-func main() { // appease the heroku gods
+func main() {
+	// appease the heroku gods
 	go func() { _ = http.ListenAndServe(":"+os.Getenv("PORT"), nil) }()
 
 	log.Logger = log.Output(zerolog.ConsoleWriter{
@@ -224,24 +228,49 @@ func main() { // appease the heroku gods
 		log.Err(err).Msg("failed dialing rpc")
 		return
 	}
+
+	routers := recon.Routers()
+
+	swaps := make(map[string]*arbiter.Swap)
+
+	for name, address := range routers {
+		swap, err := arbiter.NewSwap(address, client)
+		if err != nil {
+			log.Err(err).Msg("failed")
+			return
+		}
+		swaps[name] = swap
+	}
+
+	for name, s := range swaps {
+		pairCount, err := s.AllPairsLength(nil)
+		if err != nil {
+			log.Err(err).Msg("failed")
+			return
+		}
+		fmt.Printf("%s: %v pairs\n", name, pairCount.String())
+	}
+
+	return
+
 	//doThing(client)
 	//return
 	for _, t := range tokensList {
-		tok, err := NewToken(client, common.HexToAddress(t))
+		tok, err := arbiter.NewToken(client, common.HexToAddress(t))
 		if err != nil {
 			log.Err(err).Msg("failed creating token")
 			return
 		}
-		err = tok.populate()
+		err = tok.Populate()
 		if err != nil {
 			log.Err(err).Msg("failed populating token")
 			return
 		}
-		tokens[strings.ToLower(tok.symbol)] = *tok
+		tokens[strings.ToLower(tok.Symbol())] = *tok
 	}
 	//fmt.Println(tokensList)
 	// meerkat finance 0x145677FC4d9b8F19B5D56d1820c48e0443049a30
-	swap, err := NewSwap(common.HexToAddress("0x145677FC4d9b8F19B5D56d1820c48e0443049a30"), client)
+	swap, err := arbiter.NewSwap(common.HexToAddress("0x145677FC4d9b8F19B5D56d1820c48e0443049a30"), client)
 	if err != nil {
 		log.Err(err).Msg("failed to create router client")
 		return
@@ -253,7 +282,7 @@ func main() { // appease the heroku gods
 			if t1 == t2 {
 				continue
 			}
-			pair, err := swap.GetPair(nil, t1.address, t2.address)
+			pair, err := swap.GetPair(nil, t1.Address(), t2.Address())
 			if err != nil {
 				log.Err(err).Msg("failed to get pair from factory")
 				return
@@ -262,12 +291,12 @@ func main() { // appease the heroku gods
 				//fmt.Printf("%s - %s: %s\n", t1.Symbol(), t2.Symbol(), "NO POOL")
 				continue
 			}
-			existing := poolList.GetPair(t1.address, t2.address)
+			existing := poolList.GetPair(t1.Address(), t2.Address())
 			if !isZeroAddress(existing) {
 				//fmt.Println("EXISTS:", existing)
 				continue
 			}
-			poolList.SavePair(t1.address, t2.address, pair)
+			poolList.SavePair(t1.Address(), t2.Address(), pair)
 			fmt.Printf("%v - %v: %v\n", t1.Symbol(), t2.Symbol(), pair.String())
 		}
 	}
@@ -289,7 +318,8 @@ func main() { // appease the heroku gods
 			if !canArb {
 				continue
 			}
-			var r []Token
+			continue
+			var r []arbiter.Token
 			for _, t := range path {
 				r = append(r, tokens[t])
 			}
@@ -318,14 +348,15 @@ func isZeroAddress(a common.Address) bool {
 	return a == common.Address{0}
 }
 func checkTri(a *arb.Arb, path []string) bool {
-	var r []Token
+	var r []arbiter.Token
 	for _, t := range path {
 		r = append(r, tokens[t])
 	}
 	//fmt.Println(r)
 
 	//amount := new(big.Int).Mul(big.NewInt(100), new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(r[0].Decimals())), nil))
-	amount := r[0].FromFloat64(100)
+	amount := r[0].FromFloat64(10000)
+	//amount = big.NewInt(10000000000)
 	output, err := a.EstimateTriDexTrade(nil,
 		common.HexToAddress("0x145677FC4d9b8F19B5D56d1820c48e0443049a30"),
 		common.HexToAddress("0x145677FC4d9b8F19B5D56d1820c48e0443049a30"),

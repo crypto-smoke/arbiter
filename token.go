@@ -1,10 +1,11 @@
-package main
+package arbiter
 
 import (
 	"github.com/crypto-smoke/arbiter/erc20"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
+	"math"
 	"math/big"
 )
 
@@ -58,8 +59,14 @@ func Zero() *big.Float {
 func Mul(a, b *big.Float) *big.Float {
 	return Zero().Mul(a, b)
 }
-
-func (t *Token) populate() error {
+func balToFloat(balance *big.Int, decimals int) float64 {
+	fbalance := new(big.Float)
+	fbalance.SetString(balance.String())
+	ethValue := new(big.Float).Quo(fbalance, big.NewFloat(math.Pow10(decimals)))
+	actBal, _ := ethValue.Float64()
+	return actBal
+}
+func (t *Token) Populate() error {
 	decimals, err := t.Token.Decimals(nil)
 	if err != nil {
 		return err

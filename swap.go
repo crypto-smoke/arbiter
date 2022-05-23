@@ -1,4 +1,4 @@
-package main
+package arbiter
 
 import (
 	"github.com/crypto-smoke/arbiter/uniswapv2"
