@@ -2,9 +2,8 @@
 <head>
     <meta charset="UTF-8"/>
     <title>SmokeSwap</title>
-    <style>
-        fieldset {display:inline-block}
-    </style>
+    <link rel="stylesheet" href="css/style.css">
+
 </head>
 <body>
 <form onsubmit="return postform()" id="swapform" onkeydown="return event.key !== 'Enter';">
@@ -67,71 +66,11 @@
 
     </fieldset>
 </form>
+
+<!--
 <br><br>
 <button class="enableEthereumButton">Enable Ethereum</button>
-<h2>Account: <span class="showAccount"></span></h2>
-<script>
-    var form = document.getElementById('swapform');
-    var inputs = form.getElementsByTagName('input');
-    var balance0 = document.getElementById('balance0');
-
-    window.setInterval(function() {
-        balance0.value++;
-    }, 1000);
-
-    function loadToken(id, address) {
-        document.getElementById("token" + id + "name").innerHTML = address;
-    }
-
-    function change(id, divisor) {
-        document.getElementById("amount" + id).value = document.getElementById("balance" + id).value / divisor;
-    }
-
-    function clearAmt(id) {
-        document.getElementById("amount" + id).value = "";
-    }
-
-    if (typeof window.ethereum !== 'undefined') {
-        console.log('MetaMask is installed!');
-    }
-
-    const ethereumButton = document.querySelector('.enableEthereumButton');
-    const showAccount = document.querySelector('.showAccount');
-
-    ethereumButton.addEventListener('click', () => {
-        getAccount();
-    });
-    if (!window.ethereum) {
-        console.log("no wallet installed")
-    }
-
-    async function getAccount() {
-        const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
-        provider.send("eth_requestAccounts", []).then(() => {
-            provider.listAccounts().then((accounts) => {
-                const signer = provider.getSigner(accounts[0]);
-                showAccount.innerHTML = signer;
-            })
-        })
-        window.onload = (event) => {
-            console.log('page is fully loaded');
-
-        };
-    }
-
-    function postform () {
-        var form = document.getElementById("swapform");
-        var data = new FormData(form);
-
-        fetch("submit", {
-            method: "post",
-            body: data
-        })
-            .then((res) => { return res.text(); })
-            .then((txt) => { console.log(txt); })
-            .catch((err) => { console.log(err); });
-        return false;
-    }
-</script>
+<h2>Account: <span class="showAccount"></span></h2>-->
+<script src="js/script.js"></script>
 </body>
 </html>

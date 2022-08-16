@@ -5,9 +5,9 @@ import (
 	"github.com/crypto-smoke/arbiter"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"html/template"
 	"net/http"
 	"os"
 )
@@ -21,34 +21,56 @@ var (
 )
 
 func main() {
+	client, err := ethclient.Dial(GetEnvOrPanic("RPC_URL"))
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed dialing rpc")
+	}
+	env, err := NewEnv(client)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed creating env")
+	}
+	r := gin.Default()
+	//r.Static("/", "./ui")
+	r.POST("/swap", env.swapHandler)
+	r.GET("/api/tokenPrice", env.getPrice)
+	log.Info().Msg("open web interface at http://localhost:8069/")
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		page, ok := pages[r.URL.Path]
-		if !ok {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		var tpl *template.Template
-		var err error
-		if os.Getenv("UI_DIR") != "" {
-			tpl, err = template.ParseFS(os.DirFS("./"), page)
-		} else {
-			tpl, err = template.ParseFS(res, page)
-		}
-		if err != nil {
-			log.Printf("page %s not found in pages cache...", r.RequestURI)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html")
-		w.WriteHeader(http.StatusOK)
-		data := map[string]interface{}{
-			"userAgent": r.UserAgent(),
-		}
-		if err := tpl.Execute(w, data); err != nil {
-			return
-		}
-	})
+	r.Run("localhost:8069") // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
+}
+
+func oldmain() {
+	fs := http.FileServer(http.Dir("./ui"))
+	http.Handle("/", http.StripPrefix("/", fs))
+	/*
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			page, ok := pages[r.URL.Path]
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			var tpl *template.Template
+			var err error
+			if os.Getenv("UI_DIR") != "" {
+				tpl, err = template.ParseFS(os.DirFS("./"), page)
+			} else {
+				tpl, err = template.ParseFS(res, page)
+			}
+			if err != nil {
+				log.Printf("page %s not found in pages cache...", r.RequestURI)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			data := map[string]interface{}{
+				"userAgent": r.UserAgent(),
+			}
+			if err := tpl.Execute(w, data); err != nil {
+				return
+			}
+		})
+
+	*/
 	http.FileServer(http.FS(res))
 	log.Info().Msg("open web interface at http://localhost:8069/")
 	log.Fatal().Err(http.ListenAndServe(":8069", nil))
