@@ -1,0 +1,29 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="swapper poly" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="arbiter" />
+    <working_directory value="$PROJECT_DIR$/cmd/swapper" />
+    <envs>
+      <env name="ACCOUNT_ADDRESS" value="0x8d8352f42eae159785f0a6271e4f40cf3accea2c" />
+      <env name="BASE_TOKEN" value="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174" />
+      <env name="QUOTE_TOKEN" value="0x22a31bD4cB694433B6de19e0aCC2899E553e9481" />
+      <env name="ROUTER_ADDRESS" value="0x51aBA405De2b25E5506DeA32A6697F450cEB1a17" />
+      <env name="RPC_URL" value="wss://still-restless-mansion.matic.quiknode.pro/8b14a48a7816fb7869a6a04211e3b0836fec8253/" />
+      <env name="UI_DIR" value="./" />
+    </envs>
+    <EXTENSION ID="net.ashald.envfile">
+      <option name="IS_ENABLED" value="false" />
+      <option name="IS_SUBST" value="false" />
+      <option name="IS_PATH_MACRO_SUPPORTED" value="false" />
+      <option name="IS_IGNORE_MISSING_FILES" value="false" />
+      <option name="IS_ENABLE_EXPERIMENTAL_INTEGRATIONS" value="false" />
+      <ENTRIES>
+        <ENTRY IS_ENABLED="true" PARSER="runconfig" />
+      </ENTRIES>
+    </EXTENSION>
+    <kind value="DIRECTORY" />
+    <package value="github.com/crypto-smoke/arbiter" />
+    <directory value="$PROJECT_DIR$/cmd/swapper" />
+    <filePath value="$PROJECT_DIR$" />
+    <method v="2" />
+  </configuration>
+</component>

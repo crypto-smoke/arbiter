@@ -1,15 +1,58 @@
 package main
 
 import (
+	"embed"
 	"github.com/crypto-smoke/arbiter"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"html/template"
+	"net/http"
 	"os"
 )
 
+var (
+	//go:embed ui
+	res   embed.FS
+	pages = map[string]string{
+		"/": "ui/index.html",
+	}
+)
+
 func main() {
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		page, ok := pages[r.URL.Path]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		var tpl *template.Template
+		var err error
+		if os.Getenv("UI_DIR") != "" {
+			tpl, err = template.ParseFS(os.DirFS("./"), page)
+		} else {
+			tpl, err = template.ParseFS(res, page)
+		}
+		if err != nil {
+			log.Printf("page %s not found in pages cache...", r.RequestURI)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
+		data := map[string]interface{}{
+			"userAgent": r.UserAgent(),
+		}
+		if err := tpl.Execute(w, data); err != nil {
+			return
+		}
+	})
+	http.FileServer(http.FS(res))
+	log.Info().Msg("open web interface at http://localhost:8069/")
+	log.Fatal().Err(http.ListenAndServe(":8069", nil))
+
 	log.Logger = log.Output(zerolog.ConsoleWriter{
 		Out:     os.Stdout,
 		NoColor: false,

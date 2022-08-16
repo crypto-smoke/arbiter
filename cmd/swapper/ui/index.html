@@ -1,0 +1,137 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>SmokeSwap</title>
+    <style>
+        fieldset {display:inline-block}
+    </style>
+</head>
+<body>
+<form onsubmit="return postform()" id="swapform" onkeydown="return event.key !== 'Enter';">
+    <fieldset>
+        <legend>SmokeSwap</legend>
+
+        <label for="token0address">Quote Token Address:</label>
+        <input type="text" name="token0address" id="token0address" value="0x22a31bD4cB694433B6de19e0aCC2899E553e9481" onchange="loadToken('0',this.value)">
+        <span id="token0name">Mad Meerkat Finance (MMF)</span>
+        <br>
+        <label for="balance0">Balance:</label>
+        <input type="number" name="balance0" id="balance0" readonly value="69.420"> <span id=balanceQuoteTicker>MMF</span>
+        <br>
+        <label for="amount0">Amount:</label>
+        <input type="number" name="number" id="amount0" min="0"> <span id=balanceQuoteTicker>MMF</span>
+        <input type="button" value="All" onclick="change('0',1)">
+        <input type="button" value="50%" onclick="change('0',2)">
+        <input type="button" value="25%" onclick="change('0',4)">
+        <input type="button" value="10%" onclick="change('0',10)">
+        <input type="button" value="Clear" onclick="clearAmt('0')">
+        <br>
+        <label for="price0">Price:</label>
+        <input type="number" name="price0" id="price0" min="0"> <span id=priceBaseTicker>USDC</span>
+        <br>
+        <label for="price0">Total:</label>
+        <input type="number" name="total" id="total" min="0"> <span id=totalBaseTicker>USDC</span>
+        <input type="button" value="All" onclick="change('0',1)">
+        <input type="button" value="50%" onclick="change('0',2)">
+        <input type="button" value="25%" onclick="change('0',4)">
+        <input type="button" value="10%" onclick="change('0',10)">
+        <input type="button" value="Clear" onclick="clearAmt('0')">
+        <br>
+        <input type="submit" value="Buy" name="action"> <input type="submit" name="action" value="Sell">
+        <br><br>
+        <label for="basetoken">Base Token Address:</label>
+        <input type="text" id="basetoken" name="text" value="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174">
+        USD Coin (PoS) (USDC)
+        <br>
+        <label for="balance1">Balance:</label>
+        <input type="number" name="number" readonly value="0" id="balance1">
+
+
+        <br><br>
+
+    </fieldset>
+    <br>
+    <fieldset>
+        <legend>Settings</legend>
+        <label for="slippage">Slippage:</label>
+        <input type="number" name="slippage0" id="slippage" value="5" min="0">%
+        <br>
+        <label for="gwei">Gas Gwei:</label>
+        <input type="number" name="gwei" id="gwei" value="5" min="1">
+        <br>
+        <label for="routerAddress">Router Address:</label>
+        <input type="text" name="routerAddress" id="routerAddress" value="0x51aBA405De2b25E5506DeA32A6697F450cEB1a17" onchange="setRouter(this.value)"><br>
+<br>
+        <label for="rpcAddresss">RPC:</label>
+        <input type="text" name="rpcAddresss" id="rpcAddresss" value="https://polygon-rpc.com/" onchange=""><br>
+
+    </fieldset>
+</form>
+<br><br>
+<button class="enableEthereumButton">Enable Ethereum</button>
+<h2>Account: <span class="showAccount"></span></h2>
+<script>
+    var form = document.getElementById('swapform');
+    var inputs = form.getElementsByTagName('input');
+    var balance0 = document.getElementById('balance0');
+
+    window.setInterval(function() {
+        balance0.value++;
+    }, 1000);
+
+    function loadToken(id, address) {
+        document.getElementById("token" + id + "name").innerHTML = address;
+    }
+
+    function change(id, divisor) {
+        document.getElementById("amount" + id).value = document.getElementById("balance" + id).value / divisor;
+    }
+
+    function clearAmt(id) {
+        document.getElementById("amount" + id).value = "";
+    }
+
+    if (typeof window.ethereum !== 'undefined') {
+        console.log('MetaMask is installed!');
+    }
+
+    const ethereumButton = document.querySelector('.enableEthereumButton');
+    const showAccount = document.querySelector('.showAccount');
+
+    ethereumButton.addEventListener('click', () => {
+        getAccount();
+    });
+    if (!window.ethereum) {
+        console.log("no wallet installed")
+    }
+
+    async function getAccount() {
+        const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+        provider.send("eth_requestAccounts", []).then(() => {
+            provider.listAccounts().then((accounts) => {
+                const signer = provider.getSigner(accounts[0]);
+                showAccount.innerHTML = signer;
+            })
+        })
+        window.onload = (event) => {
+            console.log('page is fully loaded');
+
+        };
+    }
+
+    function postform () {
+        var form = document.getElementById("swapform");
+        var data = new FormData(form);
+
+        fetch("submit", {
+            method: "post",
+            body: data
+        })
+            .then((res) => { return res.text(); })
+            .then((txt) => { console.log(txt); })
+            .catch((err) => { console.log(err); });
+        return false;
+    }
+</script>
+</body>
+</html>
