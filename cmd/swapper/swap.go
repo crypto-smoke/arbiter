@@ -63,17 +63,20 @@ func (e *Env) getPrice(c *gin.Context) {
 	}
 	_ = quoteToken
 	_ = baseToken
+	midPrice := baseToken.ToFloat64(baseReserves) / quoteToken.ToFloat64(quoteReserves)
 	//value, err := r.GetAmountsOut(nil, big.NewInt(1), []common.Address{baseTokenAddresss, quoteTokenAddresss})
-	value, err := r.Quote(nil, big.NewInt(1), baseReserves, quoteReserves)
+	/*value, err := r.Quote(nil, big.NewInt(1), baseReserves, quoteReserves)
 	if err != nil {
 		log.Err(err).Msg("failed getting quote")
 		c.AbortWithError(500, err)
 		return
 	}
+
+	*/
 	fmt.Println(baseReserves.String(), quoteReserves.String())
-	fmt.Println(value)
+	fmt.Println(midPrice)
 	//fmt.Println(value[0].String(), value[1].String())
 	//value := new(big.Int).Div(baseReserves, quoteReserves)
-	fmt.Println(baseToken.ToFloat64(value))
+	//fmt.Println(baseToken.ToFloat64(value))
 	//fmt.Println(baseToken.ToFloat64(value[1]))
 }
