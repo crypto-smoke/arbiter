@@ -98,8 +98,9 @@ func NewToken(backend bind.ContractBackend, a common.Address) (*Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Token{
+	token := &Token{
 		address: a,
 		Token:   t,
-	}, nil
+	}
+	return token, token.Populate()
 }
