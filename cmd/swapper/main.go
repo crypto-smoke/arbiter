@@ -30,9 +30,12 @@ func main() {
 		log.Fatal().Err(err).Msg("failed creating env")
 	}
 	r := gin.Default()
-	//r.Static("/", "./ui")
+	r.Static("/static", "./ui")
+	r.StaticFile("/", "./ui/index.html")
 	r.POST("/swap", env.swapHandler)
-	r.GET("/api/tokenPrice", env.getPrice)
+	r.GET("/tokenPrice", env.getPriceHandler)
+	r.POST("/update", env.getUpdate)
+
 	log.Info().Msg("open web interface at http://localhost:8069/")
 
 	r.Run("localhost:8069") // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
