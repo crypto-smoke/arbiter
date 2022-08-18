@@ -1,7 +1,7 @@
 var form = document.getElementById('swapform');
 var inputs = form.getElementsByTagName('input');
 var balance0 = document.getElementById('balance0');
-
+let lastCalc;
 
 const updatePrice = function () {
     fetch('/tokenPrice?' + new URLSearchParams({
@@ -21,7 +21,7 @@ const updatePrice = function () {
         });
 };
 
-const updateData = function () {
+const updateData = function (getPrice) {
     fetch('/update', {
         method: 'POST',
         headers: {
@@ -29,7 +29,7 @@ const updateData = function () {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            get_price: true,
+            get_price: getPrice,
             get_balance: true,
             address: document.getElementById("address").value,
             quote: document.getElementById("token0address").value,
@@ -39,9 +39,18 @@ const updateData = function () {
     })
         .then(response => response.json())
         .then(data => {
-            document.getElementById("price").value = data.price
-            document.getElementById("baseBalance").value = data.base_balance
-            document.getElementById("quoteBalance").value = data.quote_balance
+            if (data.price != null) {
+                document.getElementById("price").value = data.price
+            }
+
+            if (data.base_balance != null) {
+                document.getElementById("baseBalance").value = data.base_balance
+
+            }
+            if (data.quote_balance != null) {
+                document.getElementById("quoteBalance").value = ddata.quote_balance
+
+            }
             console.log(data)
         })
         .catch(err => {
@@ -53,10 +62,10 @@ function loadToken(id, address) {
     document.getElementById("token" + id + "name").innerHTML = address;
 }
 
-function change(id,useValue, divisor) {
+function change(id, useValue, divisor) {
     document.getElementById(id).value = document.getElementById(useValue).value / divisor;
     if (id === "amount") {
-    calcTotal()
+        calcTotal()
     }
     if (id === "total") {
         calcAmount()
@@ -64,7 +73,7 @@ function change(id,useValue, divisor) {
 }
 
 function clearAmt(id) {
-    document.getElementById( id).value = "";
+    document.getElementById(id).value = "";
 }
 
 
@@ -81,27 +90,35 @@ function postform() {
         })
         .then((txt) => {
             console.log(txt);
+            log.value += "\n"+"Txn submitted"
         })
         .catch((err) => {
             console.log(err);
+            log.value += "\n"+err
         });
     return false;
 }
-
-window.setInterval(function () {
-   // balance0.value++;
-}, 1000);
-updateData();
-window.setInterval(function () {
-    if (!document.getElementById("autoPrice").checked) {
-        return
-    }
-    updatePrice()
-}, 5000)
-function calcTotal() {
-    document.getElementById("total").value = document.getElementById("amount").value * document.getElementById("price").value
+const logMessage = (message) => {
+    log.value += message + "\n"
+    log.scrollTop = log.scrollHeight
 }
+window.setInterval(function () {
+    // balance0.value++;
+    logMessage("lel")
+}, 1000);
+
+updateData(autoPrice.checked);
+window.setInterval(function () {
+    updateData(autoPrice.checked);
+}, 5000)
+
+const calcTotal = function() {
+    document.getElementById("total").value = document.getElementById("amount").value * document.getElementById("price").value
+    lastCalc = calcTotal
+}
+
 function calcAmount() {
     document.getElementById("amount").value = document.getElementById("total").value / document.getElementById("price").value
+    lastCalc = calcAmount
 
 }
