@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-const AddressToCheck = "0x51bc47c01c4bf3fd7adf49582c08668a5295da4a"
+const AddressToCheck = "0xfe2a94ecd89745f3C3099067f9738296941DbC9D"
 
 func main() {
 	client, err := ethclient.Dial("https://arb1.arbitrum.io/rpc")
