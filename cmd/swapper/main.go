@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"fmt"
 	"github.com/crypto-smoke/arbiter"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -21,7 +22,8 @@ var (
 )
 
 func main() {
-	shit()
+	account := shit()
+	fmt.Println("Using account", account.Address.String())
 	return
 	client, err := ethclient.Dial(GetEnvOrPanic("RPC_URL"))
 	if err != nil {
