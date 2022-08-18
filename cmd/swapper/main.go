@@ -21,6 +21,8 @@ var (
 )
 
 func main() {
+	shit()
+	return
 	client, err := ethclient.Dial(GetEnvOrPanic("RPC_URL"))
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed dialing rpc")
