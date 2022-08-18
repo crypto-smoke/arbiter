@@ -7,7 +7,7 @@
       <env name="BASE_TOKEN" value="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174" />
       <env name="QUOTE_TOKEN" value="0x22a31bD4cB694433B6de19e0aCC2899E553e9481" />
       <env name="ROUTER_ADDRESS" value="0x51aBA405De2b25E5506DeA32A6697F450cEB1a17" />
-      <env name="RPC_URL" value="wss://still-restless-mansion.matic.quiknode.pro/8b14a48a7816fb7869a6a04211e3b0836fec8253/" />
+      <env name="RPC_URL" value="https://polygon-rpc.com/" />
       <env name="UI_DIR" value="./" />
     </envs>
     <EXTENSION ID="net.ashald.envfile">

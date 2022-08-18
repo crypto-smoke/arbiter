@@ -3,21 +3,55 @@ package main
 import (
 	"fmt"
 	"github.com/crypto-smoke/arbiter"
+	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 	"math/big"
+	"net/http"
 )
 
 type Env struct {
-	client *ethclient.Client
+	client   *ethclient.Client
+	keystore *keystore.KeyStore
+	account  *accounts.Account
+	cfg      *Config
 }
 
-func NewEnv(c *ethclient.Client) (*Env, error) {
-	return &Env{client: c}, nil
+type Config struct {
+	WalletAddress             common.Address
+	Base, Quote               *arbiter.Token
+	BaseBalance, QuoteBalance float64
+	RPC                       string
+	Router                    common.Address
+	Slippage                  float64
+	GasGwei                   int64
 }
 
+func NewEnv(c *ethclient.Client, rpcURL string, ks *keystore.KeyStore, acc *accounts.Account) (*Env, error) {
+	return &Env{
+		client:   c,
+		keystore: ks,
+		account:  acc,
+		cfg: &Config{
+			WalletAddress: acc.Address,
+			RPC:           rpcURL,
+		},
+	}, nil
+}
+func (e *Env) indexHandler(c *gin.Context) {
+	c.HTML(http.StatusOK, "index.html", gin.H{
+		"address":           e.cfg.WalletAddress,
+		"baseTokenAddress":  e.cfg.Base.Address(),
+		"quoteTokenAddress": e.cfg.Quote.Address(),
+		"slippage":          e.cfg.Slippage,
+		"gwei":              e.cfg.GasGwei,
+		"routerAddress":     e.cfg.Router,
+		"rpcURL":            e.cfg.RPC,
+	})
+}
 func (e *Env) swapHandler(c *gin.Context) {
 
 }
@@ -41,6 +75,9 @@ type UpdateResponse struct {
 	Price        float64 `json:"price,omitempty"`
 }
 
+func (e *Env) getInitialData(c *gin.Context) {
+
+}
 func (e *Env) getUpdate(c *gin.Context) {
 	var request UpdateRequest
 	err := c.BindJSON(&request)

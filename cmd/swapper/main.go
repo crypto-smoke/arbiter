@@ -1,9 +1,10 @@
 package main
 
 import (
-	"embed"
 	"fmt"
 	"github.com/crypto-smoke/arbiter"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
@@ -11,31 +12,57 @@ import (
 	"github.com/rs/zerolog/log"
 	"net/http"
 	"os"
-)
-
-var (
-	//go:embed ui
-	res   embed.FS
-	pages = map[string]string{
-		"/": "ui/index.html",
-	}
+	"path/filepath"
 )
 
 func main() {
-	account := shit()
+
+	directory := utils.HomeDir()
+	ks := keystore.NewKeyStore(filepath.Join(directory, ".smokeswap/keystore"), keystore.StandardScryptN, keystore.StandardScryptP)
+
+	account, err := loadWallet(ks)
+	if err != nil {
+		log.Fatal().Err(err).Msg("unable to load account")
+	}
+
 	fmt.Println("Using account", account.Address.String())
-	return
-	client, err := ethclient.Dial(GetEnvOrPanic("RPC_URL"))
+	rpcURL := GetEnvOrPanic("RPC_URL")
+	client, err := ethclient.Dial(rpcURL)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed dialing rpc")
 	}
-	env, err := NewEnv(client)
+	env, err := NewEnv(client, rpcURL, ks, account)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed creating env")
 	}
-	r := gin.Default()
+	baseToken, err := arbiter.NewToken(client, common.HexToAddress("0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"))
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed creating base token")
+	}
+	quoteToken, err := arbiter.NewToken(client, common.HexToAddress("0x22a31bD4cB694433B6de19e0aCC2899E553e9481"))
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed creating quote token")
+	}
+	env.cfg = &Config{
+		WalletAddress: env.cfg.WalletAddress,
+		Base:          baseToken,
+		Quote:         quoteToken,
+		BaseBalance:   0,
+		QuoteBalance:  0,
+		RPC:           env.cfg.RPC,
+		Router:        common.HexToAddress("0x51aBA405De2b25E5506DeA32A6697F450cEB1a17"),
+		Slippage:      69,
+		GasGwei:       420,
+	}
+
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.SetTrustedProxies(nil)
 	r.Static("/static", "./ui")
-	r.StaticFile("/", "./ui/index.html")
+
+	r.LoadHTMLFiles("./ui/index.html")
+	r.GET("/", env.indexHandler)
 	r.POST("/swap", env.swapHandler)
 	r.GET("/tokenPrice", env.getPriceHandler)
 	r.POST("/update", env.getUpdate)
@@ -48,37 +75,8 @@ func main() {
 func oldmain() {
 	fs := http.FileServer(http.Dir("./ui"))
 	http.Handle("/", http.StripPrefix("/", fs))
-	/*
-		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			page, ok := pages[r.URL.Path]
-			if !ok {
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
-			var tpl *template.Template
-			var err error
-			if os.Getenv("UI_DIR") != "" {
-				tpl, err = template.ParseFS(os.DirFS("./"), page)
-			} else {
-				tpl, err = template.ParseFS(res, page)
-			}
-			if err != nil {
-				log.Printf("page %s not found in pages cache...", r.RequestURI)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			w.Header().Set("Content-Type", "text/html")
-			w.WriteHeader(http.StatusOK)
-			data := map[string]interface{}{
-				"userAgent": r.UserAgent(),
-			}
-			if err := tpl.Execute(w, data); err != nil {
-				return
-			}
-		})
 
-	*/
-	http.FileServer(http.FS(res))
+	//http.FileServer(http.FS(res))
 	log.Info().Msg("open web interface at http://localhost:8069/")
 	log.Fatal().Err(http.ListenAndServe(":8069", nil))
 

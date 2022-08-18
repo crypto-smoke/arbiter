@@ -11,7 +11,7 @@
         <legend>SmokeSwap</legend>
 
         <label for="token0address">Quote Token Address:</label>
-        <input type="text" name="token0address" id="token0address" value="0x22a31bD4cB694433B6de19e0aCC2899E553e9481"
+        <input type="text" name="token0address" id="token0address" value="{{ .baseTokenAddress }}"
                onchange="loadToken('0',this.value)">
         <span id="token0name">Mad Meerkat Finance (MMF)</span>
         <br>
@@ -44,7 +44,7 @@
         <input type="submit" value="Buy" name="action"> <input type="submit" disabled name="action" value="Sell">
         <br><br>
         <label for="basetoken">Base Token Address:</label>
-        <input type="text" id="basetoken" name="text" value="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174">
+        <input type="text" id="basetoken" name="text" value="{{ .quoteTokenAddress }}">
         USD Coin (PoS) (USDC)
         <br>
         <label for="baseBalance">Balance:</label>
@@ -58,23 +58,23 @@
     <fieldset>
         <legend>Info</legend>
         <label for="address">Address:</label>
-        <input type="text" name="address" id="address" value="0x51e3d44172868acc60d68ca99591ce4230bc75e0">
+        <input type="text" name="address" id="address" value="{{ .address }}">
     </fieldset>
     <br>
     <fieldset>
         <legend>Settings</legend>
         <label for="slippage">Slippage:</label>
-        <input type="number" name="slippage0" id="slippage" value="5" min="0">%
+        <input type="number" name="slippage0" id="slippage" value="{{ .slippage }}" min="0">%
         <br>
         <label for="gwei">Gas Gwei:</label>
-        <input type="number" name="gwei" id="gwei" value="5" min="1">
+        <input type="number" name="gwei" id="gwei" value="{{ .gwei }}" min="1">
         <br>
         <label for="routerAddress">Router Address:</label>
-        <input type="text" name="routerAddress" id="routerAddress" value="0x51aBA405De2b25E5506DeA32A6697F450cEB1a17"
+        <input type="text" name="routerAddress" id="routerAddress" value="{{ .routerAddress }}"
                onchange="setRouter(this.value)"><br>
         <br>
         <label for="rpcAddresss">RPC:</label>
-        <input type="text" name="rpcAddresss" id="rpcAddresss" value="https://polygon-rpc.com/" onchange=""><br>
+        <input type="text" name="rpcAddresss" id="rpcAddresss" value="{{ .rpcURL }}" onchange=""><br>
 
     </fieldset>
     <br>

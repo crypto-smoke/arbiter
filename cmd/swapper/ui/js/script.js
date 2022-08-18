@@ -104,7 +104,7 @@ const logMessage = (message) => {
 }
 window.setInterval(function () {
     // balance0.value++;
-    logMessage("lel")
+  //  logMessage("lel")
 }, 1000);
 
 updateData(autoPrice.checked);

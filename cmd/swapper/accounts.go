@@ -64,9 +64,9 @@ func importAccount(ks *keystore.KeyStore) error {
 	fmt.Println("key imported")
 	return nil
 }
-func loadWallet() *accounts.Account {
-	directory := utils.HomeDir()
-	ks := keystore.NewKeyStore(filepath.Join(directory, ".smokeswap/keystore"), keystore.StandardScryptN, keystore.StandardScryptP)
+
+func loadWallet(ks *keystore.KeyStore) (*accounts.Account, error) {
+
 	//	am := accounts.NewManager(&accounts.Config{InsecureUnlockAllowed: false}, ks)
 	ksAccounts := ks.Accounts()
 
@@ -75,12 +75,12 @@ func loadWallet() *accounts.Account {
 		if input.YesNo("Create new account?", true) {
 			err := createNewAccount(ks)
 			if err != nil {
-				log.Fatal().Err(err)
+				return nil, errors.Wrap(err, "failed creating new account")
 			}
 		} else {
 			err := importAccount(ks)
 			if err != nil {
-				log.Fatal().Err(err)
+				return nil, errors.Wrap(err, "failed importing account")
 			}
 		}
 	}
@@ -91,14 +91,14 @@ func loadWallet() *accounts.Account {
 	case 1:
 		err := ks.Unlock(ksAccounts[0], input.Password("Enter passphrase for account "+ksAccounts[0].Address.String()))
 		if err != nil {
-			log.Fatal().Err(err).Msg("failed unlocking account")
+			return nil, errors.Wrap(err, "failed unlocking account")
 		}
 		fmt.Println("account unlocked")
-		return &ksAccounts[0]
+		return &ksAccounts[0], nil
 	default:
-		log.Fatal().Msg("too many accounts")
+		return nil, errors.New("more than one account available")
 	}
-	return nil
+	return nil, errors.New("shouldnt be here")
 }
 
 func shit() *accounts.Account {
