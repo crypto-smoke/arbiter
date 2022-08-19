@@ -3,16 +3,17 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"github.com/crypto-smoke/arbiter"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/gin-gonic/gin"
-	"github.com/kr/pretty"
 	"github.com/rs/zerolog/log"
 	"math/big"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -29,8 +30,8 @@ type Config struct {
 
 type SwapData struct {
 	RPCURL        string           `json:"rpc_url,omitempty"`
-	RouterAddress string           `json:"router_address,omitempty"`
-	Address       string           `json:"address,omitempty"`    // address of wallet to send tx from
+	RouterAddress common.Address   `json:"router_address,omitempty"`
+	Address       common.Address   `json:"address,omitempty"`    // address of wallet to send tx from
 	SwapPath      []common.Address `json:"swap_path,omitempty"`  // path of token swap, should be []string{base,quote} if buy
 	AmountIn      float64          `json:"amount_in,omitempty"`  // input amount of the first token in the path
 	AmountOut     float64          `json:"amount_out,omitempty"` // output amount of the last token in the path (slippage not included)
@@ -39,16 +40,6 @@ type SwapData struct {
 	IsBuy         bool             `json:"is_buy,omitempty"`
 }
 
-func (e *Env) checkApproval(amt *big.Int) bool {
-	allowance, err := e.cfg.Base.Allowance(nil, e.cfg.WalletAddress, e.cfg.Router)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("amount:", amt.String())
-	fmt.Println("approval:", allowance.String())
-	// if the allowance is greater than or equal to the amount we want to send, return true
-	return allowance.Cmp(amt) >= 0
-}
 func (e *Env) getTxnOpts() *bind.TransactOpts {
 	chainID, err := e.client.ChainID(context.Background())
 	if err != nil {
@@ -60,6 +51,17 @@ func (e *Env) getTxnOpts() *bind.TransactOpts {
 	}
 	return opts
 }
+func (e *Env) checkApproval(token *arbiter.Token, spender common.Address, amount *big.Int) bool {
+	allowance, err := token.Allowance(nil, e.cfg.WalletAddress, spender)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("amount:", amount.String())
+	fmt.Println("approval:", allowance.String())
+	// if the allowance is greater than or equal to the amount we want to send, return true
+	return allowance.Cmp(amount) >= 0
+}
+
 func (e *Env) submitApproval(token *arbiter.Token, spender common.Address, amount *big.Int) {
 	opts := e.getTxnOpts()
 	if amount == nil {
@@ -104,45 +106,42 @@ func (e *Env) swapHandler(c *gin.Context) {
 		outToken = e.cfg.Quote
 	} else {
 		amountIn = e.cfg.Quote.FromFloat64(data.AmountIn)
-		amountOut = e.cfg.Base.FromFloat64(data.AmountOut)
+		amountOut = e.cfg.Base.FromFloat64(data.AmountOut - (data.AmountOut * (data.Slippage / 100)))
 		inToken = e.cfg.Quote
 		outToken = e.cfg.Base
 	}
-	pretty.Print(data)
-	s, err := arbiter.NewSwap(common.HexToAddress(data.RouterAddress), e.client)
+	s, err := arbiter.NewSwap(data.RouterAddress, e.client)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("pre", amountOut.String())
 	amountsOut, err := s.GetAmountsOut(nil, amountIn, data.SwapPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed getting amounts out")
 	}
-	for i, a := range amountsOut {
-		fmt.Println(i, ":", a.String())
-	}
+
 	amountOut = amountsOut[len(amountsOut)-1]
-	fmt.Println("post", amountOut.String())
 
 	_ = outToken
-	isApproved := e.checkApproval(amountOut)
+	isApproved := e.checkApproval(inToken, e.cfg.Router, amountOut)
 	if !isApproved {
 		fmt.Println("need approval")
 		e.submitApproval(inToken, e.cfg.Router, nil)
-		return
 	}
-	chainID, err := e.client.ChainID(context.Background())
+
+	opts, err := bind.NewKeyStoreTransactorWithChainID(e.keystore, e.account, e.chainID)
 	if err != nil {
 		panic(err)
 	}
 
-	opts, err := bind.NewKeyStoreTransactorWithChainID(e.keystore, e.account, chainID)
-	if err != nil {
-		panic(err)
+	// only set gas price if we specified something
+	if data.GasGwei != 0 {
+		opts.GasFeeCap = new(big.Int).Mul(big.NewInt(data.GasGwei), big.NewInt(1000000000))
+		opts.GasTipCap = opts.GasFeeCap
 	}
-	opts.GasPrice = new(big.Int).Mul(big.NewInt(data.GasGwei), big.NewInt(1000000000))
 
+	//opts.GasPrice = suggestedGas //new(big.Int).Mul(big.NewInt(data.GasGwei), big.NewInt(1000000000))
+	//opts.GasLimit = 500000
 	fmt.Println(amountIn.String(), amountOut.String())
 
 	tx, err := s.SwapExactTokensForTokens(opts, amountIn, amountOut, data.SwapPath, e.cfg.WalletAddress, big.NewInt(time.Now().Add(5*time.Minute).Unix()))
@@ -182,9 +181,13 @@ type UpdateRequest struct {
 	GetBalance bool    `json:"get_balance,omitempty"`
 }
 type UpdateResponse struct {
-	BaseBalance  float64 `json:"base_balance,omitempty"`
-	QuoteBalance float64 `json:"quote_balance,omitempty"`
-	Price        float64 `json:"price,omitempty"`
+	BaseBalance  json.Number `json:"base_balance"`
+	BaseName     string      `json:"base_name"`
+	BaseSymbol   string      `json:"base_symbol"`
+	QuoteBalance json.Number `json:"quote_balance"`
+	QuoteName    string      `json:"quote_name"`
+	QuoteSymbol  string      `json:"quote_symbol"`
+	Price        json.Number `json:"price"`
 }
 
 func (e *Env) getInitialData(c *gin.Context) {
@@ -211,7 +214,8 @@ func (e *Env) getUpdate(c *gin.Context) {
 			c.AbortWithError(500, err)
 			return
 		}
-		response.Price = price
+		response.Price = json.Number(strconv.FormatFloat(price, 'g', 18, 64))
+
 	}
 	if request.GetBalance {
 		baseBal, quoteBal, err := e.getBalances(
@@ -226,34 +230,45 @@ func (e *Env) getUpdate(c *gin.Context) {
 		response.QuoteBalance = quoteBal
 		response.BaseBalance = baseBal
 	}
+	response.BaseName = e.cfg.Base.Name()
+	response.BaseSymbol = e.cfg.Base.Symbol()
+	response.QuoteName = e.cfg.Quote.Name()
+	response.QuoteSymbol = e.cfg.Quote.Symbol()
 
 	c.JSON(200, response)
 }
-func (e *Env) getBalances(baseTokenAddress, quoteTokenAddress, walletAddress common.Address) (float64, float64, error) {
+func (e *Env) getBalances(baseTokenAddress, quoteTokenAddress, walletAddress common.Address) (json.Number, json.Number, error) {
 	base, err := arbiter.NewToken(e.client, baseTokenAddress)
 	if err != nil {
-		return 0.0, 0.0, err
+		return "0", "0", err
 	}
 	quote, err := arbiter.NewToken(e.client, quoteTokenAddress)
 	if err != nil {
-		return 0.0, 0.0, err
+		return "0", "0", err
 	}
 
 	baseBal, err := base.BalanceOf(nil, walletAddress)
 	if err != nil {
-		return 0.0, 0.0, err
+		return "0", "0", err
 	}
 
 	quoteBal, err := quote.BalanceOf(nil, walletAddress)
 	if err != nil {
-		return 0.0, 0.0, err
+		return "0", "0", err
 	}
+	baseFloat := base.ToFloat64(baseBal)
 
-	return base.ToFloat64(baseBal), quote.ToFloat64(quoteBal), nil
+	quoteFloat := quote.ToFloat64(quoteBal)
+	basefmtString := fmt.Sprintf("%%.%vf", base.Decimals())
+	quotefmtString := fmt.Sprintf("%%.%vf", quote.Decimals())
+	return json.Number(fmt.Sprintf(basefmtString, baseFloat)),
+		//	strconv.FormatFloat(baseFloat, 'e', base.Decimals(), 64)),
+		json.Number(fmt.Sprintf(quotefmtString, quoteFloat)),
+		nil
 }
 
 func (e *Env) getPrice(baseTokenAddress, quoteTokenAddress, routerAddress common.Address) (float64, error) {
-	fmt.Println(baseTokenAddress, quoteTokenAddress, routerAddress)
+	//	fmt.Println(baseTokenAddress, quoteTokenAddress, routerAddress)
 	r, err := arbiter.NewSwap(routerAddress, e.client)
 	if err != nil {
 		return 0.0, err

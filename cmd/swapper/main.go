@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/crypto-smoke/arbiter"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
@@ -16,7 +15,6 @@ import (
 )
 
 func main() {
-
 	directory := utils.HomeDir()
 	ks := keystore.NewKeyStore(filepath.Join(directory, ".smokeswap/keystore"), keystore.StandardScryptN, keystore.StandardScryptP)
 
@@ -25,7 +23,6 @@ func main() {
 		log.Fatal().Err(err).Msg("unable to load account")
 	}
 
-	fmt.Println("Using account", account.Address.String())
 	rpcURL := GetEnvOrPanic("RPC_URL")
 	client, err := ethclient.Dial(rpcURL)
 	if err != nil {
@@ -51,8 +48,8 @@ func main() {
 		QuoteBalance:  0,
 		RPC:           env.cfg.RPC,
 		Router:        common.HexToAddress("0x51aBA405De2b25E5506DeA32A6697F450cEB1a17"),
-		Slippage:      69,
-		GasGwei:       420,
+		Slippage:      0.15,
+		GasGwei:       0,
 	}
 
 	gin.SetMode(gin.ReleaseMode)

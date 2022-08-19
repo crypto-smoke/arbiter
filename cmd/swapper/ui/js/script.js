@@ -48,10 +48,15 @@ const updateData = function (getPrice) {
 
             }
             if (data.quote_balance != null) {
-                document.getElementById("quoteBalance").value = ddata.quote_balance
-
+                document.getElementById("quoteBalance").value = data.quote_balance
             }
-            console.log(data)
+            quoteTokenName.innerHTML = data.quote_name+ "["+data.quote_symbol+"]"
+            amountQuoteTicker.innerHTML = data.quote_symbol
+            balanceQuoteTicker.innerHTML = data.quote_symbol
+
+            baseTokenName.innerHTML = data.base_name + "["+data.base_symbol+"]"
+            priceBaseTicker.innerHTML = data.base_symbol
+            totalBaseTicker.innerHTML = data.base_symbol
         })
         .catch(err => {
             //error block
@@ -110,9 +115,9 @@ function postform(isBuy) {
             swap_path: swapPath,
             amount_in: parseFloat(amountIn),
             amount_out: parseFloat(amountOut),
-            gas_gwei: parseInt( gwei.value),
+            gas_gwei: parseInt(gwei.value),
             slippage: parseFloat(slippage.value),
-            is_buy:isBuy,
+            is_buy: isBuy,
         })
     })
         .then((res) => {
@@ -130,12 +135,14 @@ function postform(isBuy) {
 }
 
 const logMessage = (message) => {
-    log.value += message + "\n"
-    log.scrollTop = log.scrollHeight
+    var line = document.createElement('div');
+    line.innerHTML=message
+    log.appendChild(line)
+   log.scrollTop = log.scrollHeight
 }
 window.setInterval(function () {
     // balance0.value++;
-    //  logMessage("lel")
+      logMessage("lel")
 }, 1000);
 
 updateData(autoPrice.checked);

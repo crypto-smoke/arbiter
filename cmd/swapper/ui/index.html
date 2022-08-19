@@ -11,16 +11,16 @@
         <legend>SmokeSwap</legend>
 
         <label for="quoteTokenAddress">Quote Token Address:</label>
-        <input type="text" name="quoteTokenAddress" id="quoteTokenAddress" value="{{ .baseTokenAddress }}"
+        <input type="text" name="quoteTokenAddress" id="quoteTokenAddress" value="{{ .quoteTokenAddress }}"
                onchange="loadToken('0',this.value)">
-        <span id="token0name">Mad Meerkat Finance (MMF)</span>
+        <span id="quoteTokenName"></span>
         <br>
         <label for="quoteBalance">Balance:</label>
-        <input type="number" name="quoteBalance" id="quoteBalance" readonly value="69.420"> <span id=balanceQuoteTicker>MMF</span>
+        <input type="number" name="quoteBalance" id="quoteBalance" readonly value="0"> <span id=balanceQuoteTicker></span>
         <br>
         <label for="amount">Amount:</label>
         <input type="number" name="number" id="amount" min="0" step="any" oninput="calcTotal()"> <span
-            id=amountQuoteTicker>MMF</span>
+            id=amountQuoteTicker></span>
         <input type="button" value="All" onclick="change('amount','quoteBalance',1)">
         <input type="button" value="50%" onclick="change('amount','quoteBalance',2)">
         <input type="button" value="25%" onclick="change('amount','quoteBalance',4)">
@@ -29,12 +29,12 @@
         <br>
         <label for="price">Price:</label>
         <input type="number" name="price" id="price" min="0" step="any" oninput="autoPrice.checked = false"> <span
-            id=priceBaseTicker>USDC</span>
-        <input type="checkbox" name="autoPrice" id="autoPrice"> Auto
+            id=priceBaseTicker></span>
+        <input type="checkbox" name="autoPrice" id="autoPrice" checked> Auto
         <br>
         <label for="total">Total:</label>
         <input type="number" name="total" id="total" min="0" step="any" oninput="calcAmount()"> <span
-            id=totalBaseTicker>USDC</span>
+            id=totalBaseTicker></span>
         <input type="button" value="All" onclick="change('total','baseBalance',1)">
         <input type="button" value="50%" onclick="change('total','baseBalance',2)">
         <input type="button" value="25%" onclick="change('total','baseBalance',4)">
@@ -45,8 +45,8 @@
         <input type="button" name="action" value="Sell"  onclick="return postform(false)">
         <br><br>
         <label for="basetoken">Base Token Address:</label>
-        <input type="text" id="basetoken" name="text" value="{{ .quoteTokenAddress }}">
-        USD Coin (PoS) (USDC)
+        <input type="text" id="basetoken" name="text" value="{{ .baseTokenAddress }}">
+        <span id="baseTokenName"></span>
         <br>
         <label for="baseBalance">Balance:</label>
         <input type="number" name="number" readonly value="0" id="baseBalance">
@@ -72,14 +72,13 @@
                onchange="setRouter(this.value)"><br>
         <br>
         <label for="rpcAddresss">RPC:</label>
-        <input type="text" name="rpcAddresss" id="rpcAddresss" value="{{ .rpcURL }}" onchange=""><br>
+        <input type="text" disabled name="rpcAddresss" id="rpcAddresss" value="{{ .rpcURL }}" onchange=""><br>
 
     </fieldset>
     <br>
     <fieldset>
         <legend>Log</legend>
-        <label for="log"></label>
-        <textarea id="log" name="log" rows="5" cols="70" readonly></textarea>
+        <div id="log" style="overflow-y:auto; height: 100px; width:40%" ></div>
     </fieldset>
 
 </form>
