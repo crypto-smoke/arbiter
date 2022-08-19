@@ -1,24 +1,21 @@
 package main
 
 import (
+	"context"
+	"encoding/hex"
 	"fmt"
 	"github.com/crypto-smoke/arbiter"
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/gin-gonic/gin"
+	"github.com/kr/pretty"
 	"github.com/rs/zerolog/log"
 	"math/big"
 	"net/http"
+	"strings"
+	"time"
 )
-
-type Env struct {
-	client   *ethclient.Client
-	keystore *keystore.KeyStore
-	account  *accounts.Account
-	cfg      *Config
-}
 
 type Config struct {
 	WalletAddress             common.Address
@@ -30,16 +27,133 @@ type Config struct {
 	GasGwei                   int64
 }
 
-func NewEnv(c *ethclient.Client, rpcURL string, ks *keystore.KeyStore, acc *accounts.Account) (*Env, error) {
-	return &Env{
-		client:   c,
-		keystore: ks,
-		account:  acc,
-		cfg: &Config{
-			WalletAddress: acc.Address,
-			RPC:           rpcURL,
-		},
-	}, nil
+type SwapData struct {
+	RPCURL        string           `json:"rpc_url,omitempty"`
+	RouterAddress string           `json:"router_address,omitempty"`
+	Address       string           `json:"address,omitempty"`    // address of wallet to send tx from
+	SwapPath      []common.Address `json:"swap_path,omitempty"`  // path of token swap, should be []string{base,quote} if buy
+	AmountIn      float64          `json:"amount_in,omitempty"`  // input amount of the first token in the path
+	AmountOut     float64          `json:"amount_out,omitempty"` // output amount of the last token in the path (slippage not included)
+	GasGwei       int64            `json:"gas_gwei,omitempty"`
+	Slippage      float64          `json:"slippage,omitempty"` // slippage in percent (1% == 1.0)
+	IsBuy         bool             `json:"is_buy,omitempty"`
+}
+
+func (e *Env) checkApproval(amt *big.Int) bool {
+	allowance, err := e.cfg.Base.Allowance(nil, e.cfg.WalletAddress, e.cfg.Router)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("amount:", amt.String())
+	fmt.Println("approval:", allowance.String())
+	// if the allowance is greater than or equal to the amount we want to send, return true
+	return allowance.Cmp(amt) >= 0
+}
+func (e *Env) getTxnOpts() *bind.TransactOpts {
+	chainID, err := e.client.ChainID(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	opts, err := bind.NewKeyStoreTransactorWithChainID(e.keystore, e.account, chainID)
+	if err != nil {
+		panic(err)
+	}
+	return opts
+}
+func (e *Env) submitApproval(token *arbiter.Token, spender common.Address, amount *big.Int) {
+	opts := e.getTxnOpts()
+	if amount == nil {
+		b, err := hex.DecodeString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+		if err != nil {
+			panic(err)
+		}
+		amount = new(big.Int).SetBytes(b)
+
+	}
+	fmt.Println("submitting approval for", amount.String())
+	tx, err := token.Approve(opts, spender, amount)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("approval sent")
+	rcpt, err := bind.WaitMined(context.Background(), e.client, tx)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("mined")
+	if rcpt.Status == types.ReceiptStatusSuccessful {
+		fmt.Println("success")
+	}
+}
+func (e *Env) swapHandler(c *gin.Context) {
+	var data SwapData
+	err := c.BindJSON(&data)
+	if err != nil {
+		panic(err)
+	}
+	if strings.ToLower(e.cfg.RPC) != strings.ToLower(data.RPCURL) {
+		// update client and reconnect
+		fmt.Println("new rpc")
+	}
+	var amountIn, amountOut *big.Int
+	var inToken, outToken *arbiter.Token
+	if data.IsBuy {
+		amountIn = e.cfg.Base.FromFloat64(data.AmountIn)
+		amountOut = e.cfg.Quote.FromFloat64(data.AmountOut - (data.AmountOut * (data.Slippage / 100)))
+		inToken = e.cfg.Base
+		outToken = e.cfg.Quote
+	} else {
+		amountIn = e.cfg.Quote.FromFloat64(data.AmountIn)
+		amountOut = e.cfg.Base.FromFloat64(data.AmountOut)
+		inToken = e.cfg.Quote
+		outToken = e.cfg.Base
+	}
+	pretty.Print(data)
+	s, err := arbiter.NewSwap(common.HexToAddress(data.RouterAddress), e.client)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("pre", amountOut.String())
+	amountsOut, err := s.GetAmountsOut(nil, amountIn, data.SwapPath)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed getting amounts out")
+	}
+	for i, a := range amountsOut {
+		fmt.Println(i, ":", a.String())
+	}
+	amountOut = amountsOut[len(amountsOut)-1]
+	fmt.Println("post", amountOut.String())
+
+	_ = outToken
+	isApproved := e.checkApproval(amountOut)
+	if !isApproved {
+		fmt.Println("need approval")
+		e.submitApproval(inToken, e.cfg.Router, nil)
+		return
+	}
+	chainID, err := e.client.ChainID(context.Background())
+	if err != nil {
+		panic(err)
+	}
+
+	opts, err := bind.NewKeyStoreTransactorWithChainID(e.keystore, e.account, chainID)
+	if err != nil {
+		panic(err)
+	}
+	opts.GasPrice = new(big.Int).Mul(big.NewInt(data.GasGwei), big.NewInt(1000000000))
+
+	fmt.Println(amountIn.String(), amountOut.String())
+
+	tx, err := s.SwapExactTokensForTokens(opts, amountIn, amountOut, data.SwapPath, e.cfg.WalletAddress, big.NewInt(time.Now().Add(5*time.Minute).Unix()))
+	if err != nil {
+		panic(err)
+	}
+	rcpt, err := bind.WaitMined(context.Background(), e.client, tx)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("done", rcpt.Status, rcpt.TxHash)
 }
 func (e *Env) indexHandler(c *gin.Context) {
 	c.HTML(http.StatusOK, "index.html", gin.H{
@@ -52,9 +166,7 @@ func (e *Env) indexHandler(c *gin.Context) {
 		"rpcURL":            e.cfg.RPC,
 	})
 }
-func (e *Env) swapHandler(c *gin.Context) {
 
-}
 func Token0isBase(baseToken common.Address, lp *arbiter.LiquidityPool) bool {
 	return lp.Token0().Address() == baseToken
 }
