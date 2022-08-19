@@ -32,7 +32,7 @@ const updateData = function (getPrice) {
             get_price: getPrice,
             get_balance: true,
             address: document.getElementById("address").value,
-            quote: document.getElementById("token0address").value,
+            quote: document.getElementById("quoteTokenAddress").value,
             base: document.getElementById("basetoken").value,
             router: document.getElementById("routerAddress").value,
         })
@@ -77,34 +77,65 @@ function clearAmt(id) {
 }
 
 
-function postform() {
-    var form = document.getElementById("swapform");
-    var data = new FormData(form);
+function postform(isBuy) {
+    let swapPath
+    let amountIn
+    let amountOut
+    if (isBuy) {
+        swapPath = [
+            document.getElementById("basetoken").value,
+            document.getElementById("quoteTokenAddress").value,
+        ]
+        amountIn = total.value
+        amountOut = amount.value
+    } else {
+        swapPath = [
+            document.getElementById("quoteTokenAddress").value,
+            document.getElementById("basetoken").value,
+        ]
+        amountIn = amount.value
+        amountOut = total.value
+    }
 
-    fetch("swap", {
-        method: "post",
-        body: data
+    fetch('/swap', {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            rpc_url: rpcAddresss.value,
+            router_address: routerAddress.value,
+            address: address.value,
+            swap_path: swapPath,
+            amount_in: parseFloat(amountIn),
+            amount_out: parseFloat(amountOut),
+            gas_gwei: parseInt( gwei.value),
+            slippage: parseFloat(slippage.value),
+            is_buy:isBuy,
+        })
     })
         .then((res) => {
             return res.text();
         })
         .then((txt) => {
             console.log(txt);
-            log.value += "\n"+"Txn submitted"
+            log.value += "\n" + "Txn submitted"
         })
         .catch((err) => {
             console.log(err);
-            log.value += "\n"+err
+            log.value += "\n" + err
         });
     return false;
 }
+
 const logMessage = (message) => {
     log.value += message + "\n"
     log.scrollTop = log.scrollHeight
 }
 window.setInterval(function () {
     // balance0.value++;
-  //  logMessage("lel")
+    //  logMessage("lel")
 }, 1000);
 
 updateData(autoPrice.checked);
@@ -112,7 +143,7 @@ window.setInterval(function () {
     updateData(autoPrice.checked);
 }, 5000)
 
-const calcTotal = function() {
+const calcTotal = function () {
     document.getElementById("total").value = document.getElementById("amount").value * document.getElementById("price").value
     lastCalc = calcTotal
 }

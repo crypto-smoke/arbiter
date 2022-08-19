@@ -31,7 +31,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed dialing rpc")
 	}
-	env, err := NewEnv(client, rpcURL, ks, account)
+	env, err := NewEnv(client, rpcURL, ks, *account)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed creating env")
 	}
